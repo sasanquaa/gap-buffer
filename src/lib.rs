@@ -70,18 +70,18 @@ impl<T, A: Allocator> GapBuffer<T, A> {
         }
         self.gap_move_to(i);
         self.gap_ensure_size(1);
-        unsafe { *self.buffer.as_ptr().add(self.gap_start) = value; }
+        unsafe { self.buffer.as_ptr().add(self.gap_start).write(value) }
         self.gap_start += 1;
         self.gap_len -= 1;
     }
 
     pub fn delete(&mut self, i: usize) -> T {
-        if self.len() == 0 || i > self.len() {
+        if i >= self.len() {
             panic!("Index out of bound for {:?} of buffer's size {:?}", i, self.len())
         }
         self.gap_move_to(i);
         self.gap_len += 1;
-        unsafe { self.buffer.as_ptr().add(self.gap_start).read() }
+        unsafe { self.buffer.as_ptr().add(self.gap_start).add(self.gap_len - 1).read() }
     }
 
     pub fn len(&self) -> usize {
@@ -207,6 +207,8 @@ impl<T: fmt::Debug> fmt::Debug for GapBuffer<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use crate::GapBuffer;
 
     #[test]
@@ -288,5 +290,16 @@ mod tests {
         buf.gap_ensure_size(65);
         assert_eq!(buf.gap_len, 128);
         assert_eq!(buf.buffer_capacity, 128);
+    }
+
+    #[test]
+    fn gap_buffer_drop_test() {
+        let last = Rc::new(0);
+        let weak = Rc::downgrade(&last);
+        {
+            let mut buf = GapBuffer::new();
+            buf.push(last);
+        };
+        assert!(weak.upgrade().is_none());
     }
 }
